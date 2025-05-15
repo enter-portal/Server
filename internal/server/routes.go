@@ -13,9 +13,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	// Apply CORS middleware
 	r.Use(s.corsMiddleware)
-
 	r.HandleFunc("/", s.HelloWorldHandler)
-
 	r.HandleFunc("/health", s.healthHandler)
 
 	return r

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"portal/internal/server/models"
 	"strconv"
 	"time"
 
@@ -50,7 +51,7 @@ func New() Service {
 		log.Fatal(err)
 	}
 	// Migrate the schema in database
-	// db.AutoMigrate(&models.File{})
+	db.AutoMigrate(&models.User{})
 	dbInstance = &service{
 		db: db,
 	}

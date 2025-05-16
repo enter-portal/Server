@@ -1,15 +1,19 @@
+name: portal
 services:
-  app:
+  server:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ./docker/postgres/Dockerfile
       target: prod
+      args:
+        - PORT=${PORT}
     restart: unless-stopped
     ports:
       - ${PORT}:${PORT}
     environment:
       APP_ENV: ${APP_ENV}
       PORT: ${PORT}
+      DB: ${DB:-postgres}
       DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT}
       DB_DATABASE: ${DB_DATABASE}
@@ -21,6 +25,7 @@ services:
         condition: service_healthy
     networks:
       - portal
+
   postgres:
     image: postgres:latest
     restart: unless-stopped
@@ -31,7 +36,7 @@ services:
     ports:
       - "${DB_PORT}:5432"
     volumes:
-      - postgres_volume:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "sh -c 'pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}'"]
       interval: 5s
@@ -42,7 +47,7 @@ services:
       - portal
 
 volumes:
-  postgres_volume:
+  postgres_data:
 
 networks:
   portal:

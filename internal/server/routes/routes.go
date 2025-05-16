@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func RegisterRoutes() http.Handler {
+func Routes() http.Handler {
 
 	r := mux.NewRouter()
 
@@ -15,11 +15,12 @@ func RegisterRoutes() http.Handler {
 	r.Use(corsMiddleware)
 
 	baseController := controllers.NewBaseController()
+	serviceController := controllers.NewServiceController(baseController)
 	userController := controllers.NewUserController(baseController)
 
 	// General routes
-	r.HandleFunc("/", baseController.HelloWorldHandler).Methods("GET")
-	r.HandleFunc("/health", baseController.HealthHandler).Methods("GET")
+	r.HandleFunc("/", serviceController.HelloWorldHandler).Methods("GET")
+	r.HandleFunc("/health", serviceController.HealthHandler).Methods("GET")
 
 	// Subroute for user routes
 	userRouter := r.PathPrefix("/users").Subrouter()

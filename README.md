@@ -27,14 +27,30 @@ run the application
 make run
 ```
 
-Create DB container
+Create Docker container
 ```bash
+# Create Docker SQLite container
 make docker-run
+# Shutdown Docker SQLite container
+make docker-down
+
+# Create Docker Postgres container
+make docker-run-postgres
+# Shutdown Docker Postgres container
+make docker-down-postgres
 ```
 
-Shutdown DB container
+Create Podman container
 ```bash
-make docker-down
+# Create Podman SQLite container
+make podman-run
+# Shutdown Podman SQLite container
+make podman-down
+
+# Create Podman Postgres container
+make podman-run-postgres
+# Shutdown Podman Postgres container
+make podman-down-postgres
 ```
 
 live reload the application

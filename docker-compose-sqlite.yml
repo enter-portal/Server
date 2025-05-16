@@ -1,0 +1,27 @@
+name: portal
+services:
+  server:
+    build:
+      context: .
+      dockerfile: ./docker/sqlite/Dockerfile
+      target: prod
+      args:
+        - PORT=${PORT}
+    restart: unless-stopped
+    ports:
+      - ${PORT}:${PORT}
+    environment:
+      APP_ENV: ${APP_ENV}
+      PORT: ${PORT}
+      DB: ${DB:-sqlite}
+      DB_PATH: ${DB_PATH:-/var/lib/sqlite/data/portal.db}
+    volumes:
+      - server_data:/var/lib/sqlite/data
+    networks:
+      - portal
+
+volumes:
+  server_data:
+
+networks:
+  portal:

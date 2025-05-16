@@ -4,30 +4,19 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"portal/internal/server/models"
+	"portal/internal/server/utils"
 	"strconv"
 	"time"
 
-	_ "github.com/joho/godotenv/autoload"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+
+	_ "github.com/joho/godotenv/autoload"
 )
-
-// Service represents a service that interacts with a database.
-type Service interface {
-	// Health returns a map of health status information.
-	// The keys and values in the map are service-specific.
-	Health() map[string]string
-
-	// Close terminates the database connection.
-	// It returns an error if the connection cannot be closed.
-	Close() error
-}
-
-type service struct {
-	db *gorm.DB
-}
 
 var (
 	database   = os.Getenv("DB_DATABASE")
@@ -35,51 +24,79 @@ var (
 	username   = os.Getenv("DB_USERNAME")
 	port       = os.Getenv("DB_PORT")
 	host       = os.Getenv("DB_HOST")
-	schema     = os.Getenv("DB_SCHEMA")
 	sslmode    = os.Getenv("DB_SSL_MODE")
-	dbInstance *service
+	dbInstance *gorm.DB
 )
 
-func New() Service {
+func New() *gorm.DB {
 	// Reuse Connection
 	if dbInstance != nil {
 		return dbInstance
 	}
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s", host, username, password, database, port, sslmode)
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+
+	// Check the environment variable for the database type
+	dbType := os.Getenv("DB")
+
+	var db *gorm.DB
+	var err error
+
+	if dbType == "postgres" {
+
+		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s", host, username, password, database, port, sslmode)
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		dsn, ok := os.LookupEnv("DB_PATH")
+		if !ok {
+			appName, ok := os.LookupEnv("APP_NAME")
+			if !ok {
+				appName = "portal"
+			}
+			dsn = fmt.Sprintf("%s.db", appName)
+		}
+		log.Printf("Falling back on SQLite: %s\n", dsn)
+		db, err = gorm.Open(sqlite.Open(fmt.Sprintf("%s", dsn)), &gorm.Config{})
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Migrate the schema in database
+
+	// Migrate the schema
 	db.AutoMigrate(&models.User{})
-	dbInstance = &service{
-		db: db,
-	}
+	dbInstance = db
 	return dbInstance
 }
 
 // Health checks the health of the database connection by pinging the database.
 // It returns a map with keys indicating various health statistics.
-func (s *service) Health() map[string]string {
+func Health() (int, utils.JSON) {
+	stats := utils.JSON{}
+
+	if dbInstance == nil {
+		stats["message"] = "Failed to disconnected: dbInstance is not nil"
+		return http.StatusBadRequest, stats
+	}
 
 	// Get the underlying DB object
-	sqlDB, err := s.db.DB()
+	sqlDB, err := dbInstance.DB()
 	if err != nil {
-		log.Fatalln(err)
+		stats["message"] = err.Error()
+		return http.StatusBadRequest, stats
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-
-	stats := make(map[string]string)
 
 	// Ping the database
 	err = sqlDB.PingContext(ctx)
 	if err != nil {
 		stats["status"] = "down"
 		stats["error"] = fmt.Sprintf("db down: %v", err)
-		log.Fatalf("db down: %v", err) // Log the error and terminate the program
-		return stats
+		log.Fatalf("%s", fmt.Sprintf("db down: %v", err)) // Log the error and terminate the program
+		return http.StatusBadRequest, stats
 	}
 
 	// Database is up, add more statistics
@@ -113,16 +130,20 @@ func (s *service) Health() map[string]string {
 		stats["message"] = "Many connections are being closed due to max lifetime, consider increasing max lifetime or revising the connection usage pattern."
 	}
 
-	return stats
+	return http.StatusOK, stats
 }
 
 // Close closes the database connection.
 // It logs a message indicating the disconnection from the specific database.
 // If the connection is successfully closed, it returns nil.
 // If an error occurs while closing the connection, it returns the error.
-func (s *service) Close() error {
+func Close() error {
+	if dbInstance == nil {
+		return fmt.Errorf("Failed to close: dbInstance is nil")
+	}
+
 	// Get the underlying DB object
-	sqlDB, err := s.db.DB()
+	sqlDB, err := dbInstance.DB()
 	if err != nil {
 		log.Fatalln(err)
 	}

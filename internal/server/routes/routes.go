@@ -3,6 +3,7 @@ package routes
 import (
 	"net/http"
 	"portal/internal/server/controllers"
+	"portal/internal/server/middlewares"
 
 	"github.com/gorilla/mux"
 )
@@ -11,8 +12,19 @@ func Routes() http.Handler {
 
 	r := mux.NewRouter()
 
-	// Apply CORS middleware
-	r.Use(corsMiddleware)
+	// Create CORS middleware
+	corsMiddleware := middlewares.NewCorsMiddleware()
+	canonicalPathMiddleware := middlewares.NewCanonicalPathMiddleware()
+	// Define a map of paths and their corresponding HTTP methods which are allowed without authentication
+	authMiddleware := middlewares.NewAuthMiddleware(map[string][]string{
+		"/":       {"GET"},
+		"/health": {"GET"},
+		"/users":  {"GET", "POST"},
+	})
+
+	// Middlewares
+	r.Use(corsMiddleware.Middleware)
+	r.Use(authMiddleware.Middleware)
 
 	baseController := controllers.NewBaseController()
 	serviceController := controllers.NewServiceController(baseController)
@@ -30,24 +42,5 @@ func Routes() http.Handler {
 	userRouter.HandleFunc("/{id}", userController.Update).Methods("PUT")
 	userRouter.HandleFunc("/{id}", userController.Delete).Methods("DELETE")
 
-	return r
-}
-
-// CORS middleware
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// CORS Headers
-		w.Header().Set("Access-Control-Allow-Origin", "*") // Wildcard allows all origins
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type")
-		w.Header().Set("Access-Control-Allow-Credentials", "false") // Credentials not allowed with wildcard origins
-
-		// Handle preflight OPTIONS requests
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+	return canonicalPathMiddleware.Middleware(r)
 }
